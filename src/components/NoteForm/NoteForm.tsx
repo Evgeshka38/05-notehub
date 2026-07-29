@@ -1,7 +1,11 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ErrorMessage, Field, Form, Formik } from 'formik';
 import * as Yup from 'yup';
 
-import type { CreateNoteData } from '../../services/noteService';
+import {
+  createNote,
+  type CreateNoteData,
+} from '../../services/noteService';
 import type { NoteTag } from '../../types/note';
 
 import css from './NoteForm.module.css';
@@ -32,106 +36,130 @@ const validationSchema = Yup.object({
 });
 
 interface NoteFormProps {
-  onSubmit: (values: CreateNoteData) => Promise<void>;
   onCancel: () => void;
 }
 
-const NoteForm = ({ onSubmit, onCancel }: NoteFormProps) => {
+const NoteForm = ({ onCancel }: NoteFormProps) => {
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: createNote,
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['notes'],
+      });
+
+      onCancel();
+    },
+  });
+
   return (
     <Formik
       initialValues={initialValues}
       validationSchema={validationSchema}
       onSubmit={async (values, actions) => {
         try {
-          await onSubmit(values);
+          await createMutation.mutateAsync(values);
           actions.resetForm();
         } finally {
           actions.setSubmitting(false);
         }
       }}
     >
-      {({ isSubmitting }) => (
-        <Form className={css.form}>
-          <div className={css.formGroup}>
-            <label htmlFor="title">Title</label>
+      {({ isSubmitting }) => {
+        const isCreating =
+          isSubmitting || createMutation.isPending;
 
-            <Field
-              id="title"
-              type="text"
-              name="title"
-              className={css.input}
-            />
+        return (
+          <Form className={css.form}>
+            <div className={css.formGroup}>
+              <label htmlFor="title">Title</label>
 
-            <ErrorMessage
-              name="title"
-              component="span"
-              className={css.error}
-            />
-          </div>
+              <Field
+                id="title"
+                type="text"
+                name="title"
+                className={css.input}
+              />
 
-          <div className={css.formGroup}>
-            <label htmlFor="content">Content</label>
+              <ErrorMessage
+                name="title"
+                component="span"
+                className={css.error}
+              />
+            </div>
 
-            <Field
-              as="textarea"
-              id="content"
-              name="content"
-              rows={8}
-              className={css.textarea}
-            />
+            <div className={css.formGroup}>
+              <label htmlFor="content">Content</label>
 
-            <ErrorMessage
-              name="content"
-              component="span"
-              className={css.error}
-            />
-          </div>
+              <Field
+                as="textarea"
+                id="content"
+                name="content"
+                rows={8}
+                className={css.textarea}
+              />
 
-          <div className={css.formGroup}>
-            <label htmlFor="tag">Tag</label>
+              <ErrorMessage
+                name="content"
+                component="span"
+                className={css.error}
+              />
+            </div>
 
-            <Field
-              as="select"
-              id="tag"
-              name="tag"
-              className={css.select}
-            >
-              <option value="Todo">Todo</option>
-              <option value="Work">Work</option>
-              <option value="Personal">Personal</option>
-              <option value="Meeting">Meeting</option>
-              <option value="Shopping">Shopping</option>
-            </Field>
+            <div className={css.formGroup}>
+              <label htmlFor="tag">Tag</label>
 
-            <ErrorMessage
-              name="tag"
-              component="span"
-              className={css.error}
-            />
-          </div>
+              <Field
+                as="select"
+                id="tag"
+                name="tag"
+                className={css.select}
+              >
+                <option value="Todo">Todo</option>
+                <option value="Work">Work</option>
+                <option value="Personal">Personal</option>
+                <option value="Meeting">Meeting</option>
+                <option value="Shopping">Shopping</option>
+              </Field>
 
-          <div className={css.actions}>
-            <button
-              type="button"
-              className={css.cancelButton}
-              onClick={onCancel}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
+              <ErrorMessage
+                name="tag"
+                component="span"
+                className={css.error}
+              />
+            </div>
 
-            <button
-              type="submit"
-              className={css.submitButton}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? 'Creating...' : 'Create note'}
-            </button>
-          </div>
-        </Form>
-      )}
+            {createMutation.isError && (
+              <p className={css.error} role="alert">
+                There was an error creating the note.
+              </p>
+            )}
+
+            <div className={css.actions}>
+              <button
+                type="button"
+                className={css.cancelButton}
+                onClick={onCancel}
+                disabled={isCreating}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                className={css.submitButton}
+                disabled={isCreating}
+              >
+                {isCreating ? 'Creating...' : 'Create note'}
+              </button>
+            </div>
+          </Form>
+        );
+      }}
     </Formik>
   );
-}
+};
 
 export default NoteForm;
